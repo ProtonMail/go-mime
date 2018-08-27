@@ -65,7 +65,7 @@ func visit(part io.Reader, h textproto.MIMEHeader, accepter VisitAcceptor, hasPl
 
 }
 
-func getAllChildParts(part io.Reader, h textproto.MIMEHeader) (parts []io.Reader, headers []textproto.MIMEHeader, err error) {
+func GetAllChildParts(part io.Reader, h textproto.MIMEHeader) (parts []io.Reader, headers []textproto.MIMEHeader, err error) {
 
 	mediaType, params, err := mime.ParseMediaType(h.Get("Content-Type"))
 	if err != nil {
@@ -85,7 +85,7 @@ func getAllChildParts(part io.Reader, h textproto.MIMEHeader) (parts []io.Reader
 			}
 			var childParts []io.Reader
 			var childHeaders []textproto.MIMEHeader
-			if childParts, childHeaders, err = getAllChildParts(chosenPart, chosenHeader); err != nil {
+			if childParts, childHeaders, err = GetAllChildParts(chosenPart, chosenHeader); err != nil {
 				return
 			}
 			parts = append(parts, childParts...)
@@ -94,7 +94,7 @@ func getAllChildParts(part io.Reader, h textproto.MIMEHeader) (parts []io.Reader
 			for i, p := range multiparts {
 				var childParts []io.Reader
 				var childHeaders []textproto.MIMEHeader
-				if childParts, childHeaders, err = getAllChildParts(p, multipartHeaders[i]); err != nil {
+				if childParts, childHeaders, err = GetAllChildParts(p, multipartHeaders[i]); err != nil {
 					return
 				}
 				parts = append(parts, childParts...)
