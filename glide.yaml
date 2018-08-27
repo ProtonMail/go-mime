@@ -1,0 +1,5 @@
+package: pm-mime
+import:
+- package: golang.org/x/crypto
+  version: v1.0.0
+  repo: https://github.com/ProtonMail/crypto.git
