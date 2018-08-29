@@ -32,9 +32,27 @@ func MinimalParse(mimeBody string) (readBody string, plainContents string, err e
 	return readBody, plainContents, err
 }
 
-func AndroidParse(mimeBody string) (readBody string, plainContents string, err error) {
-	// TODO: samle, edit as needed
-	return MinimalParse(mimeBody)
+func AndroidParse(mimeBody string) (body, headers string, atts, attHeaders []string, err error) {
+
+	mm, err := mail.ReadMessage(strings.NewReader(mimeBody))
+	if err != nil {
+		return
+	}
+
+	h := textproto.MIMEHeader(mm.Header)
+	mmBodyData, err := ioutil.ReadAll(mm.Body)
+
+	printAccepter := NewMIMEPrinter()
+	bodyCollector := NewBodyCollector(printAccepter)
+	attachmentsCollector := NewAttachmentsCollector(bodyCollector)
+	err = VisitAll(bytes.NewReader(mmBodyData), h, attachmentsCollector)
+
+	body = bodyCollector.GetBody()
+	headers = bodyCollector.GetHeaders()
+	atts = attachmentsCollector.GetAttachments()
+	attHeaders = attachmentsCollector.GetAttHeaders()
+
+	return
 }
 
 func TestParse(t *testing.T) {
@@ -62,12 +80,18 @@ this is the attachment text
 
 
 `
-	fmt.Println("+++")
-	body, plain, err := MinimalParse(testMessage)
+	body, heads, att, attHeads, err := AndroidParse(testMessage)
 	if err != nil {
 		t.Error(err)
 	}
 
+	fmt.Println("==BODY:")
 	fmt.Println(body)
-	fmt.Println(plain)
+	fmt.Println("==BODY HEADERS:")
+	fmt.Println(heads)
+
+	fmt.Println("==ATTACHMENTS:")
+	fmt.Println(att)
+	fmt.Println("==ATTACHMENT HEADERS:")
+	fmt.Println(attHeads)
 }

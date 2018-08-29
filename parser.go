@@ -312,3 +312,128 @@ func (ptc PlainTextCollector) Accept(partReader io.Reader, header textproto.MIME
 func (ptc PlainTextCollector) GetPlainText() string {
 	return ptc.plainTextContents.String()
 }
+
+// ======================== Body Collector  ==============
+// Collect contents of all non-attachment parts and return
+// it as a string
+
+type BodyCollector struct {
+	target            VisitAcceptor
+	htmlBodyBuffer    *bytes.Buffer
+	plainBodyBuffer   *bytes.Buffer
+	htmlHeaderBuffer  *bytes.Buffer
+	plainHeaderBuffer *bytes.Buffer
+	hasHtml           bool
+}
+
+func NewBodyCollector(targetAccepter VisitAcceptor) *BodyCollector {
+	return &BodyCollector{
+		target:            targetAccepter,
+		htmlBodyBuffer:    bytes.NewBuffer([]byte("")),
+		plainBodyBuffer:   bytes.NewBuffer([]byte("")),
+		htmlHeaderBuffer:  bytes.NewBuffer([]byte("")),
+		plainHeaderBuffer: bytes.NewBuffer([]byte("")),
+	}
+}
+
+func (bc BodyCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) {
+	// TODO: collect html and plaintext - if there's html with plain sibling don't include plain/text
+	if isFirst {
+		if IsLeaf(header) {
+			mediaType, params, _ := mime.ParseMediaType(header.Get("Content-Type"))
+			disp, _, _ := mime.ParseMediaType(header.Get("Content-Disposition"))
+			if disp != "attachment" {
+				partData, _ := ioutil.ReadAll(partReader)
+				decodedPart := decodePart(bytes.NewReader(partData), header)
+				if buffer, err := ioutil.ReadAll(decodedPart); err == nil {
+					buffer, err = DecodeCharset(buffer, params)
+					if err != nil {
+						log.Warnln("Decode charset error:", err)
+					}
+					if mediaType == "text/html" {
+						bc.hasHtml = true
+						http.Header(header).Write(bc.htmlHeaderBuffer)
+						bc.htmlBodyBuffer.Write(buffer)
+					} else if mediaType == "text/plain" {
+						http.Header(header).Write(bc.plainHeaderBuffer)
+						bc.plainBodyBuffer.Write(buffer)
+					}
+				}
+
+				bc.target.Accept(bytes.NewReader(partData), header, hasPlainSibling, isFirst, isLast)
+				return
+			}
+		}
+	}
+	bc.target.Accept(partReader, header, hasPlainSibling, isFirst, isLast)
+}
+
+func (bc BodyCollector) GetBody() string {
+	if bc.hasHtml {
+		return bc.htmlBodyBuffer.String()
+	} else {
+		return bc.plainBodyBuffer.String()
+	}
+}
+
+func (bc BodyCollector) GetHeaders() string {
+	if bc.hasHtml {
+		return bc.htmlHeaderBuffer.String()
+	} else {
+		return bc.plainHeaderBuffer.String()
+	}
+}
+
+// ======================== Attachments Collector  ==============
+// Collect contents of all attachment parts and return
+// them as a string
+
+type AttachmentsCollector struct {
+	target     VisitAcceptor
+	attBuffers []string
+	attHeaders []string
+}
+
+func NewAttachmentsCollector(targetAccepter VisitAcceptor) *AttachmentsCollector {
+	return &AttachmentsCollector{
+		target:     targetAccepter,
+		attBuffers: []string{},
+		attHeaders: []string{},
+	}
+}
+
+func (ac *AttachmentsCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) {
+	if isFirst {
+		if IsLeaf(header) {
+			mediaType, params, _ := mime.ParseMediaType(header.Get("Content-Type"))
+			disp, _, _ := mime.ParseMediaType(header.Get("Content-Disposition"))
+			if mediaType == "text/calendar" || disp == "attachment" {
+				partData, _ := ioutil.ReadAll(partReader)
+				decodedPart := decodePart(bytes.NewReader(partData), header)
+
+				if buffer, err := ioutil.ReadAll(decodedPart); err == nil {
+					buffer, err = DecodeCharset(buffer, params)
+					if err != nil {
+						log.Warnln("Decode charset error:", err)
+					}
+					headerBuf := new(bytes.Buffer)
+					http.Header(header).Write(headerBuf)
+					ac.attHeaders = append(ac.attHeaders, headerBuf.String())
+					ac.attBuffers = append(ac.attBuffers, string(buffer))
+				}
+
+				ac.target.Accept(bytes.NewReader(partData), header, hasPlainSibling, isFirst, isLast)
+				return
+			}
+		}
+	}
+	ac.target.Accept(partReader, header, hasPlainSibling, isFirst, isLast)
+}
+
+func (ac AttachmentsCollector) GetAttachments() []string {
+	return ac.attBuffers
+}
+
+func (ac AttachmentsCollector) GetAttHeaders() []string {
+	return ac.attHeaders
+}
