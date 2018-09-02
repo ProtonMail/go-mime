@@ -1,8 +1,5 @@
 package: mimeparser
 import:
-- package: golang.org/x/crypto
-  version: v1.0.0
-  repo: https://github.com/ProtonMail/crypto.git
 - package: github.com/Sirupsen/logrus
 - package: golang.org/x/text
   subpackages:

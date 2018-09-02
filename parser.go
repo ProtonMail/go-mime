@@ -368,11 +368,11 @@ func (bc BodyCollector) Accept(partReader io.Reader, header textproto.MIMEHeader
 	bc.target.Accept(partReader, header, hasPlainSibling, isFirst, isLast)
 }
 
-func (bc BodyCollector) GetBody() string {
+func (bc BodyCollector) GetBody() (string, string) {
 	if bc.hasHtml {
-		return bc.htmlBodyBuffer.String()
+		return bc.htmlBodyBuffer.String(), "text/html"
 	} else {
-		return bc.plainBodyBuffer.String()
+		return bc.plainBodyBuffer.String(), "text/plain"
 	}
 }
 
