@@ -1,4 +1,4 @@
-package mimeparser
+package pmmime
 
 import (
 	"bytes"
@@ -45,7 +45,8 @@ func AndroidParse(mimeBody string) (body, headers string, atts, attHeaders []str
 	printAccepter := NewMIMEPrinter()
 	bodyCollector := NewBodyCollector(printAccepter)
 	attachmentsCollector := NewAttachmentsCollector(bodyCollector)
-	err = VisitAll(bytes.NewReader(mmBodyData), h, attachmentsCollector)
+	mimeVisitor := NewMimeVisitor(attachmentsCollector)
+	err = VisitAll(bytes.NewReader(mmBodyData), h, mimeVisitor)
 
 	body = bodyCollector.GetBody()
 	headers = bodyCollector.GetHeaders()

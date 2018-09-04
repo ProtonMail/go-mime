@@ -1,4 +1,4 @@
-package mimeparser
+package pmmime
 
 import (
 	"encoding/base64"
