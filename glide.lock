@@ -1,9 +1,6 @@
 hash: ddfea63af1d533f00e3bc97b26bdca4e632aa4bbadfef0e29ac65029d63496e3
 updated: 2018-08-24T17:23:33.472706715+02:00
 imports:
-- name: golang.org/x/crypto
-  version: 9e4251120d8c43f10024d798bc6dde21d40704a0
-  repo: https://github.com/ProtonMail/crypto.git
 - name: github.com/Sirupsen/logrus
   version: 778f2e774c725116edbc3d039dc0dfc1cc62aae8
 - name: golang.org/x/text
