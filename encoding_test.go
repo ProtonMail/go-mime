@@ -1,4 +1,4 @@
-package mimeparser
+package pmmime
 
 import (
 	"bytes"

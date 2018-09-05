@@ -1,4 +1,4 @@
-package: mimeparser
+package: pmmime
 import:
 - package: github.com/Sirupsen/logrus
 - package: golang.org/x/text

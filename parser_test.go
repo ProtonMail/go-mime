@@ -1,4 +1,4 @@
-package mimeparser
+package pmmime
 
 import (
 	"bytes"
@@ -45,9 +45,10 @@ func AndroidParse(mimeBody string) (body, headers string, atts, attHeaders []str
 	printAccepter := NewMIMEPrinter()
 	bodyCollector := NewBodyCollector(printAccepter)
 	attachmentsCollector := NewAttachmentsCollector(bodyCollector)
-	err = VisitAll(bytes.NewReader(mmBodyData), h, attachmentsCollector)
+	mimeVisitor := NewMimeVisitor(attachmentsCollector)
+	err = VisitAll(bytes.NewReader(mmBodyData), h, mimeVisitor)
 
-	body = bodyCollector.GetBody()
+	body, _ = bodyCollector.GetBody()
 	headers = bodyCollector.GetHeaders()
 	atts = attachmentsCollector.GetAttachments()
 	attHeaders = attachmentsCollector.GetAttHeaders()
@@ -68,6 +69,11 @@ This is a multipart message in MIME format.
 Content-Type: text/plain
 
 this is the body text
+
+--XXXXboundary text 
+Content-Type: text/html
+
+this is the html body text
 
 --XXXXboundary text 
 Content-Type: text/plain;
