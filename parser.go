@@ -36,7 +36,7 @@ type MimeVisitor struct {
 	target     VisitAcceptor
 }
 
-func (mv MimeVisitor) Accept(part io.Reader, h textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error) {
+func (mv *MimeVisitor) Accept(part io.Reader, h textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error) {
 	if (!isFirst) {
 		return;
 	}
@@ -304,7 +304,7 @@ func NewPlainTextCollector(targetAccepter VisitAcceptor) *PlainTextCollector {
 	}
 }
 
-func (ptc PlainTextCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error)  {
+func (ptc *PlainTextCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error)  {
 	if isFirst {
 		if IsLeaf(header) {
 			mediaType, params, _ := mime.ParseMediaType(header.Get("Content-Type"))
@@ -357,7 +357,7 @@ func NewBodyCollector(targetAccepter VisitAcceptor) *BodyCollector {
 	}
 }
 
-func (bc BodyCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error)  {
+func (bc *BodyCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error)  {
 	// TODO: collect html and plaintext - if there's html with plain sibling don't include plain/text
 	if isFirst {
 		if IsLeaf(header) {
@@ -390,7 +390,7 @@ func (bc BodyCollector) Accept(partReader io.Reader, header textproto.MIMEHeader
 	return
 }
 
-func (bc BodyCollector) GetBody() (string, string) {
+func (bc *BodyCollector) GetBody() (string, string) {
 	if bc.hasHtml {
 		return bc.htmlBodyBuffer.String(), "text/html"
 	} else {
@@ -398,7 +398,7 @@ func (bc BodyCollector) GetBody() (string, string) {
 	}
 }
 
-func (bc BodyCollector) GetHeaders() string {
+func (bc *BodyCollector) GetHeaders() string {
 	if bc.hasHtml {
 		return bc.htmlHeaderBuffer.String()
 	} else {
