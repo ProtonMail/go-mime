@@ -1,6 +1,7 @@
 package pmmime
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"io/ioutil"
@@ -81,6 +82,50 @@ func (mv *MimeVisitor) Accept(part io.Reader, h textproto.MIMEHeader, hasPlainSi
 
 func NewMimeVisitor(targetAccepter VisitAcceptor) *MimeVisitor {
 	return &MimeVisitor{targetAccepter}
+}
+
+func GetRawMimePart(rawdata io.Reader, boundary string) (io.Reader, io.Reader) {
+	b, _ := ioutil.ReadAll(rawdata)
+	tee := bytes.NewReader(b)
+
+	reader := bufio.NewReader(bytes.NewReader(b))
+	byteBoundary := []byte(boundary)
+	bodyBuffer := &bytes.Buffer{}
+	for {
+		line, _, err := reader.ReadLine()
+		if err != nil {
+			return tee, bytes.NewReader(bodyBuffer.Bytes())
+		}
+		if bytes.HasPrefix(line, byteBoundary) {
+			break
+		}
+	}
+	lineEndingLength := 0
+	for {
+		line, isPrefix, err := reader.ReadLine()
+		if err != nil {
+			return tee, bytes.NewReader(bodyBuffer.Bytes())
+		}
+		if bytes.HasPrefix(line, byteBoundary) {
+			break
+		}
+		lineEndingLength = 0
+		bodyBuffer.Write(line)
+		if !isPrefix {
+			reader.UnreadByte()
+			reader.UnreadByte()
+			token, _ := reader.ReadByte()
+			if token == '\r' {
+				lineEndingLength++
+				bodyBuffer.WriteByte(token)
+			}
+			lineEndingLength++
+			bodyBuffer.WriteByte(token)
+		}
+	}
+	ioutil.ReadAll(reader)
+	data := bodyBuffer.Bytes()
+	return tee, bytes.NewReader(data[0 : len(data)-lineEndingLength])
 }
 
 func GetAllChildParts(part io.Reader, h textproto.MIMEHeader) (parts []io.Reader, headers []textproto.MIMEHeader, err error) {
