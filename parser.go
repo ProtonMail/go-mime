@@ -1,6 +1,7 @@
 package pmmime
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"io/ioutil"
@@ -31,14 +32,13 @@ func IsLeaf(h textproto.MIMEHeader) bool {
 	return !strings.HasPrefix(h.Get("Content-Type"), "multipart/")
 }
 
-
 type MimeVisitor struct {
-	target     VisitAcceptor
+	target VisitAcceptor
 }
 
 func (mv *MimeVisitor) Accept(part io.Reader, h textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error) {
-	if (!isFirst) {
-		return;
+	if !isFirst {
+		return
 	}
 	parentMediaType, params, err := mime.ParseMediaType(h.Get("Content-Type"))
 	if err != nil {
@@ -52,7 +52,7 @@ func (mv *MimeVisitor) Accept(part io.Reader, h textproto.MIMEHeader, hasPlainSi
 	if !IsLeaf(h) {
 		var multiparts []io.Reader
 		var multipartHeaders []textproto.MIMEHeader
-		if multiparts, multipartHeaders, err = getMultipartParts(part, params); err != nil {
+		if multiparts, multipartHeaders, err = GetMultipartParts(part, params); err != nil {
 			return
 		} else {
 			hasPlainChild := false
@@ -81,7 +81,51 @@ func (mv *MimeVisitor) Accept(part io.Reader, h textproto.MIMEHeader, hasPlainSi
 }
 
 func NewMimeVisitor(targetAccepter VisitAcceptor) *MimeVisitor {
-	return &MimeVisitor{ targetAccepter }
+	return &MimeVisitor{targetAccepter}
+}
+
+func GetRawMimePart(rawdata io.Reader, boundary string) (io.Reader, io.Reader) {
+	b, _ := ioutil.ReadAll(rawdata)
+	tee := bytes.NewReader(b)
+
+	reader := bufio.NewReader(bytes.NewReader(b))
+	byteBoundary := []byte(boundary)
+	bodyBuffer := &bytes.Buffer{}
+	for {
+		line, _, err := reader.ReadLine()
+		if err != nil {
+			return tee, bytes.NewReader(bodyBuffer.Bytes())
+		}
+		if bytes.HasPrefix(line, byteBoundary) {
+			break
+		}
+	}
+	lineEndingLength := 0
+	for {
+		line, isPrefix, err := reader.ReadLine()
+		if err != nil {
+			return tee, bytes.NewReader(bodyBuffer.Bytes())
+		}
+		if bytes.HasPrefix(line, byteBoundary) {
+			break
+		}
+		lineEndingLength = 0
+		bodyBuffer.Write(line)
+		if !isPrefix {
+			reader.UnreadByte()
+			reader.UnreadByte()
+			token, _ := reader.ReadByte()
+			if token == '\r' {
+				lineEndingLength++
+				bodyBuffer.WriteByte(token)
+			}
+			lineEndingLength++
+			bodyBuffer.WriteByte(token)
+		}
+	}
+	ioutil.ReadAll(reader)
+	data := bodyBuffer.Bytes()
+	return tee, bytes.NewReader(data[0 : len(data)-lineEndingLength])
 }
 
 func GetAllChildParts(part io.Reader, h textproto.MIMEHeader) (parts []io.Reader, headers []textproto.MIMEHeader, err error) {
@@ -93,7 +137,7 @@ func GetAllChildParts(part io.Reader, h textproto.MIMEHeader) (parts []io.Reader
 	if strings.HasPrefix(mediaType, "multipart/") {
 		var multiparts []io.Reader
 		var multipartHeaders []textproto.MIMEHeader
-		if multiparts, multipartHeaders, err = getMultipartParts(part, params); err != nil {
+		if multiparts, multipartHeaders, err = GetMultipartParts(part, params); err != nil {
 			return
 		}
 		if strings.Contains(mediaType, "alternative") {
@@ -127,7 +171,7 @@ func GetAllChildParts(part io.Reader, h textproto.MIMEHeader) (parts []io.Reader
 	return
 }
 
-func getMultipartParts(r io.Reader, params map[string]string) (parts []io.Reader, headers []textproto.MIMEHeader, err error) {
+func GetMultipartParts(r io.Reader, params map[string]string) (parts []io.Reader, headers []textproto.MIMEHeader, err error) {
 	mr := multipart.NewReader(r, params["boundary"])
 	parts = []io.Reader{}
 	headers = []textproto.MIMEHeader{}
@@ -304,7 +348,7 @@ func NewPlainTextCollector(targetAccepter VisitAcceptor) *PlainTextCollector {
 	}
 }
 
-func (ptc *PlainTextCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error)  {
+func (ptc *PlainTextCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error) {
 	if isFirst {
 		if IsLeaf(header) {
 			mediaType, params, _ := mime.ParseMediaType(header.Get("Content-Type"))
@@ -357,7 +401,7 @@ func NewBodyCollector(targetAccepter VisitAcceptor) *BodyCollector {
 	}
 }
 
-func (bc *BodyCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error)  {
+func (bc *BodyCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error) {
 	// TODO: collect html and plaintext - if there's html with plain sibling don't include plain/text
 	if isFirst {
 		if IsLeaf(header) {
@@ -424,7 +468,7 @@ func NewAttachmentsCollector(targetAccepter VisitAcceptor) *AttachmentsCollector
 	}
 }
 
-func (ac *AttachmentsCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error)  {
+func (ac *AttachmentsCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error) {
 	if isFirst {
 		if IsLeaf(header) {
 			mediaType, params, _ := mime.ParseMediaType(header.Get("Content-Type"))
