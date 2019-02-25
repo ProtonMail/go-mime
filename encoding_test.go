@@ -44,35 +44,17 @@ func TestGetEncoding(t *testing.T) {
 		"utf-8": []string{ // MIB 16
 			"utf8",
 			"csutf8",
-			"us-ascii", // MIB 3
-			"iso-ir-6",
 			"unicode-1-1-utf-8",
 			"iso-utf-8",
 			"utf8mb4",
-			"ansi_x3.4-1968",
-			"ansi_x3.4-1986",
-			"iso_646.irv:1991",
-			"iso646-us",
-			"us",
-			"ibm367",
-			"cp367",
-			"csascii",
-			"ascii",
 		},
 		"gbk": []string{
 			"gb2312", // MIB 2025
+			//"euc-cn": []string{
+			"euccn",
+			"ibm-euccn",
 		},
 		//"utf7": []string{"utf-7", "unicode-1-1-utf-7"},
-		"iso-8859-1": []string{ // MIB 4
-			"iso8859-1",
-			"so-ir-100",
-			"iso_8859-1",
-			"latin1",
-			"l1",
-			"ibm819",
-			"cp819",
-			"csisolatin1",
-		},
 		"iso-8859-2": []string{ // MIB 5
 			"iso-ir-101",
 			"iso_8859-2",
@@ -81,6 +63,7 @@ func TestGetEncoding(t *testing.T) {
 			"l2",
 			"csisolatin2",
 			"ibm852",
+			//"FAILEDibm852",
 		},
 		"iso-8859-3": []string{ // MIB 6
 			"iso-ir-109",
@@ -108,11 +91,11 @@ func TestGetEncoding(t *testing.T) {
 			"ecma-114",
 			"asmo-708",
 			"arabic",
-			"csisolatinarabic"},
-		"iso-8859-6e": []string{ // MIB 81
+			"csisolatinarabic",
+			//"iso-8859-6e": []string{ // MIB 81 just direction
 			"csiso88596e",
-			"iso-8859-6-e"},
-		"iso-8859-6i": []string{ // MIB 82
+			"iso-8859-6-e",
+			//"iso-8859-6i": []string{ // MIB 82
 			"csiso88596i",
 			"iso-8859-6-i"},
 		"iso-8859-7": []string{ // MIB 10
@@ -126,15 +109,17 @@ func TestGetEncoding(t *testing.T) {
 		"iso-8859-8": []string{ // MIB 11
 			"iso-ir-138",
 			"iso_8859-8",
-			"iso-8859-8-i", // Hebrew, the "i" means right-to-left, probably unnecessary with ISO cleaning above
 			"hebrew",
-			"csisolatinhebrew"},
-		"iso-8859-8e": []string{ // MIB 84
+			"csisolatinhebrew",
+			//"iso-8859-8e": []string{ // MIB 84 (directionality
 			"csiso88598e",
-			"iso-8859-8-e"},
-		"iso-8859-8i": []string{ // MIB 85
+			"iso-8859-8-e",
+		},
+		"iso-8859-8-i": []string{ // MIB 85
+			"logical",
 			"csiso88598i",
-			"iso-8859-8-i"},
+			"iso-8859-8-i", // Hebrew, the "i" means right-to-left, probably unnecessary with ISO cleaning above
+		},
 		"iso-8859-10": []string{ // MIB 13
 			"iso-ir-157",
 			"l6",
@@ -183,63 +168,80 @@ func TestGetEncoding(t *testing.T) {
 			"cp1252",
 			"3dwindows-1252",
 			"we8mswin1252",
+			"us-ascii",         // MIB 3
+			"ansi_x3.110-1983", // MIB 74 // usascii
+			//"iso-8859-1": []string{ // MIB 4 succeed by win1252
+			"iso8859-1",
+			"iso-ir-100",
+			"iso_8859-1",
+			"latin1",
+			"l1",
+			"ibm819",
+			"cp819",
+			"csisolatin1",
+			"ansi_x3.4-1968",
+			"ansi_x3.4-1986",
+			"cp850",
+			"cp858", // "cp850"  Mostly correct except for the Euro sign
+			"iso_646.irv:1991",
+			"iso646-us",
+			"us",
+			"ibm367",
+			"cp367",
+			"csascii",
+			"ascii",
+			"iso-ir-6",
 		},
 		"windows-1253": []string{"cswindows1253", "cp1253"},        // MIB 2253
 		"windows-1254": []string{"cswindows1254", "cp1254"},        // MIB 2254
 		"windows-1255": []string{"cswindows1255", "cp1255"},        // MIB 2255
 		"windows-1256": []string{"cswindows1256", "cp1256"},        // MIB 2256
 		"windows-1257": []string{"cswindows1257", "cp1257"},        // MIB 2257
-		"windows-1258": []string{"cswindows1258", "cp1258"},        // MIB 2257 "koi8-r":       []string{"cskoi8r"},            // MIB 2084
-		"koi8-u":       []string{"cskoi8u"},                        // MIB 2088
+		"windows-1258": []string{"cswindows1258", "cp1258"},        // MIB 2257
+		"koi8-r":       []string{"cskoi8r", "koi8r"},               // MIB 2084
+		"koi8-u":       []string{"cskoi8u", "koi8u"},               // MIB 2088
 		"macintosh":    []string{"mac", "macroman", "csmacintosh"}, // MIB 2027
-		"uhc": []string{ // Korea
+		"big5": []string{
+			"zht16mswin950", // cp950
+			"cp950",
+		},
+		"euc-kr": []string{
+			"euckr", // MIB 38
+			"ibm-euckr",
+			//"uhc": []string{ // Korea
 			"ks_c_5601-1987",
 			"ksc5601",
 			"cp949",
 		},
-		"big5": []string{
-			"big5",
-		},
-		"euckr": []string{
-			"euc-kr", // MIB 38
-			"ibm-euckr",
-		},
-		"euccn": []string{
-			"ibm-euccn",
-		},
-		"eucjp": []string{
+		"euc-jp": []string{
+			"eucjp",
 			"ibm-eucjp",
 		},
-		"iso2022jp": []string{
+		"iso-2022-jp": []string{ // MIB 39
+			"iso2022jp",
 			"csiso2022jp",
-			"iso-2022-jp", // MIB 39
 		},
 
-		"unkown": []string{
-			"cp850",
-			"cp858",            // "cp850"  Mostly correct except for the Euro sign
-			"ansi_x3.110-1983", // MIB 74 // utf 8 probably
-			"zht16mswin950",    // cp950
-			"cp950",
-		},
+		"unknown": []string{},
 	}
 
 	for expected, names := range mimesets {
+		expenc, _ := htmlindex.Get(expected)
+		if expected != "unknown" {
+			if canonical, err := htmlindex.Name(expenc); canonical != expected || err != nil {
+				t.Fatalf("Error while get canonical name. Expected '%v' but have %v `%#v`: %v", expected, canonical, expenc, err)
+			}
+		}
 		for _, name := range names {
 			enc, err := getEncoding(name)
-			if err != nil {
-				t.Errorf("Error while get encoding %v: %v", name, err)
+			if err != nil || enc == nil {
+				t.Errorf("Error while getting encoding for %v returned: '%#v' and error: '%v'", name, enc, err)
 			}
-			canonical, err := htmlindex.Name(enc)
-			if err != nil {
-				t.Errorf("Error while get canonical %v: %v", name, err)
-			}
-			if canonical != expected {
-				t.Errorf("Expected %v but have %v", expected, canonical)
+			if expenc != enc {
+				t.Errorf("For %v expected %v '%v' but have '%v'", name, expected, expenc, enc)
 			}
 		}
 	}
-
 }
 
 // sample text for UTF8 http://www.columbia.edu/~fdc/utf8/index.html
