@@ -30,11 +30,11 @@ var wordDec = &mime.WordDecoder{
 
 // expected trimmed low case
 func getEncoding(charset string) (enc encoding.Encoding, err error) {
-	preparsed := charset
+	preparsed := strings.Trim(strings.ToLower(charset), " \t\r\n")
 
 	// koi
 	re := regexp.MustCompile("(cs)?koi[-_ ]?8?[-_ ]?(r|ru|u|uk)?$")
-	matches := re.FindAllStringSubmatch(charset, -1)
+	matches := re.FindAllStringSubmatch(preparsed, -1)
 	if len(matches) == 1 && len(matches[0]) == 3 {
 		preparsed = "koi8-"
 		switch matches[0][2] {
@@ -47,7 +47,7 @@ func getEncoding(charset string) (enc encoding.Encoding, err error) {
 
 	// windows-XXXX
 	re = regexp.MustCompile("(cp|(cs)?win(dows)?)[-_ ]?([0-9]{3,4})$")
-	matches = re.FindAllStringSubmatch(charset, -1)
+	matches = re.FindAllStringSubmatch(preparsed, -1)
 	if len(matches) == 1 && len(matches[0]) == 5 {
 		switch matches[0][4] {
 		case "874", "1250", "1251", "1252", "1253", "1254", "1255", "1256", "1257", "1258":
@@ -57,7 +57,7 @@ func getEncoding(charset string) (enc encoding.Encoding, err error) {
 
 	// iso
 	re = regexp.MustCompile("iso[-_ ]?([0-9]{4})[-_ ]?([0-9]+|jp)?[-_ ]?(i|e)?")
-	matches = re.FindAllStringSubmatch(charset, -1)
+	matches = re.FindAllStringSubmatch(preparsed, -1)
 	if len(matches) == 1 && len(matches[0]) == 4 {
 		if matches[0][1] == "2022" && matches[0][2] == "jp" {
 			preparsed = "iso-2022-jp"
@@ -77,7 +77,7 @@ func getEncoding(charset string) (enc encoding.Encoding, err error) {
 
 	// latin is tricky
 	re = regexp.MustCompile("^(cs|csiso)?l(atin)?[-_ ]?([0-9]{1,2})$")
-	matches = re.FindAllStringSubmatch(charset, -1)
+	matches = re.FindAllStringSubmatch(preparsed, -1)
 	if len(matches) == 1 && len(matches[0]) == 4 {
 		switch matches[0][3] {
 		case "1":
@@ -96,7 +96,7 @@ func getEncoding(charset string) (enc encoding.Encoding, err error) {
 	}
 
 	// missing substitutions
-	switch charset {
+	switch preparsed {
 	case "csutf8", "iso-utf-8", "utf8mb4":
 		preparsed = "utf-8"
 
@@ -124,7 +124,7 @@ func getEncoding(charset string) (enc encoding.Encoding, err error) {
 		"ibm367",
 		"ibm-367",
 		"iso-ir-6":
-		preparsed = "windows-1252"
+		preparsed = "ascii"
 
 	case "ibm852":
 		preparsed = "iso-8859-2"
