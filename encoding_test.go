@@ -2,7 +2,7 @@ package pmmime
 
 import (
 	"bytes"
-	"fmt"
+	//"fmt"
 	"strings"
 	"testing"
 
@@ -14,6 +14,14 @@ func TestDecodeHeader(t *testing.T) {
 		{
 			"",
 			"",
+		},
+		{
+			"=?iso-2022-jp?Q?=1B$B!Z=1B(BTimes_Car_PLUS=1B$B![JV5Q>Z=1B(B?=",
+			"【Times Car PLUS】返却証",
+		},
+		{
+			`=?iso-2022-jp?Q?iTunes_Movie_=1B$B%K%e!<%j%j!<%9$HCmL\:nIJ=1B(B?=`,
+			"iTunes Movie ニューリリースと注目作品",
 		},
 		{
 			"=?UTF-8?B?w4TDi8OPw5bDnA==?= =?UTF-8?B?IMOkw6vDr8O2w7w=?=",
@@ -31,9 +39,9 @@ func TestDecodeHeader(t *testing.T) {
 
 	for _, val := range testData {
 		if decoded, err := DecodeHeader(val.raw); strings.Compare(val.expected, decoded) != 0 {
-			t.Error("Incorrect decoding of header", val.raw, "expected", val.expected, "but have", decoded, ". Error", err)
+			t.Error("Incorrect decoding of header", val.raw, "expected", val.expected, "but have", decoded, "; Error", err)
 		} else {
-			fmt.Println("Header", val.raw, "successfully decoded", decoded, ". Error", err)
+			// fmt.Println("Header", val.raw, "successfully decoded", decoded, ". Error", err)
 		}
 	}
 }
@@ -334,14 +342,14 @@ func TestEncodeReader(t *testing.T) {
 
 	// run tests
 	for _, val := range testData {
-		fmt.Println("Testing ", val)
+		//fmt.Println("Testing ", val)
 		expected := []byte(val.message)
 		decoded, err := DecodeCharset(val.original, val.params)
 		if len(expected) == 0 {
 			if err == nil {
 				t.Error("Expected err but have ", err)
 			} else {
-				fmt.Println("Expected err: ", err)
+				//fmt.Println("Expected err: ", err)
 				continue
 			}
 		} else {
@@ -351,7 +359,7 @@ func TestEncodeReader(t *testing.T) {
 		}
 
 		if bytes.Equal(decoded, expected) {
-			fmt.Println("Succesfull decoding of ", val.params, ":", string(decoded))
+			// fmt.Println("Succesfull decoding of ", val.params, ":", string(decoded))
 		} else {
 			t.Error("Wrong encoding of ", val.params, ".Expected\n", expected, "\nbut have\n", decoded)
 		}
