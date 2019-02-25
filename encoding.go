@@ -2,7 +2,7 @@ package pmmime
 
 import (
 	"bytes"
-	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"mime/quotedprintable"
@@ -27,18 +27,24 @@ var wordDec = &mime.WordDecoder{
 	},
 }
 
-func getEncoding(charset string) (enc *encoding.Encoding, err error) {
-	enc, err = htmlsets.Lookup(charset)
+func getEncoding(charset string) (enc encoding.Encoding, err error) {
+	enc, _ = htmlsets.Lookup(charset)
+	if enc == nil {
+		err = fmt.Errorf("Can not get encodig for '%s'", charset)
+	}
 	return
 }
 
 func selectDecoder(charset string) (decoder *encoding.Decoder, err error) {
-	lcharset := strings.Trim(strings.ToLower(charset))
-	if strings.Contains("utf-7", lcharset) || strings.Contains("unicode-1-1-utf-7") {
+	var enc encoding.Encoding
+	lcharset := strings.Trim(strings.ToLower(charset), " \t\r\n")
+	switch lcharset {
+	case "utf-7", "unicode-1-1-utf-7":
 		return NewUtf7Decoder(), nil
+	default:
+		enc, err = getEncoding(lcharset)
 	}
-	enc, err := getEncoding(lcharset)
-	if err == nil && enc != nil {
+	if err == nil {
 		decoder = enc.NewDecoder()
 	}
 	return

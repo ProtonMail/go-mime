@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"golang.org/x/text/encoding/htmlindex"
 )
 
 func TestDecodeHeader(t *testing.T) {
@@ -222,17 +224,19 @@ func TestGetEncoding(t *testing.T) {
 		},
 	}
 
-	for expected, name := range mimesets {
-		enc, err := getEncoding(name)
-		if err != nil {
-			t.Errorf("Error while get encoding %v: %v", name, err)
-		}
-		canonical, err := Name(enc)
-		if err != nil {
-			t.Errorf("Error while get canonical %v: %v", name, err)
-		}
-		if canonical != expected {
-			t.Errorf("Expected %v but have %v", expected, canonical)
+	for expected, names := range mimesets {
+		for _, name := range names {
+			enc, err := getEncoding(name)
+			if err != nil {
+				t.Errorf("Error while get encoding %v: %v", name, err)
+			}
+			canonical, err := htmlindex.Name(enc)
+			if err != nil {
+				t.Errorf("Error while get canonical %v: %v", name, err)
+			}
+			if canonical != expected {
+				t.Errorf("Expected %v but have %v", expected, canonical)
+			}
 		}
 	}
 
