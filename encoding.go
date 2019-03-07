@@ -2,15 +2,16 @@ package pmmime
 
 import (
 	"bytes"
-	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"mime/quotedprintable"
+	"regexp"
 	"strings"
 
 	"encoding/base64"
 	"golang.org/x/text/encoding"
-	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/htmlindex"
 	"golang.org/x/text/transform"
 )
 
@@ -27,172 +28,134 @@ var wordDec = &mime.WordDecoder{
 	},
 }
 
-func selectDecoder(charset string) (decoder *encoding.Decoder, err error) {
-	var enc encoding.Encoding
-	// all MIME charset with aliases can be found here https://www.iana.org/assignments/character-sets/character-sets.xhtml
-	switch strings.ToLower(charset) {
-	case "utf-8", // MIB 16
-		"utf8",
-		"csutf8",
-		"us-ascii", // MIB 3
-		"iso-ir-6",
+// expected trimmed low case
+func getEncoding(charset string) (enc encoding.Encoding, err error) {
+	preparsed := strings.Trim(strings.ToLower(charset), " \t\r\n")
+
+	// koi
+	re := regexp.MustCompile("(cs)?koi[-_ ]?8?[-_ ]?(r|ru|u|uk)?$")
+	matches := re.FindAllStringSubmatch(preparsed, -1)
+	if len(matches) == 1 && len(matches[0]) == 3 {
+		preparsed = "koi8-"
+		switch matches[0][2] {
+		case "u", "uk":
+			preparsed += "u"
+		default:
+			preparsed += "r"
+		}
+	}
+
+	// windows-XXXX
+	re = regexp.MustCompile("(cp|(cs)?win(dows)?)[-_ ]?([0-9]{3,4})$")
+	matches = re.FindAllStringSubmatch(preparsed, -1)
+	if len(matches) == 1 && len(matches[0]) == 5 {
+		switch matches[0][4] {
+		case "874", "1250", "1251", "1252", "1253", "1254", "1255", "1256", "1257", "1258":
+			preparsed = "windows-" + matches[0][4]
+		}
+	}
+
+	// iso
+	re = regexp.MustCompile("iso[-_ ]?([0-9]{4})[-_ ]?([0-9]+|jp)?[-_ ]?(i|e)?")
+	matches = re.FindAllStringSubmatch(preparsed, -1)
+	if len(matches) == 1 && len(matches[0]) == 4 {
+		if matches[0][1] == "2022" && matches[0][2] == "jp" {
+			preparsed = "iso-2022-jp"
+		}
+		if matches[0][1] == "8859" {
+			switch matches[0][2] {
+			case "1", "2", "3", "4", "5", "7", "8", "9", "10", "11", "13", "14", "15", "16":
+				preparsed = "iso-8859-" + matches[0][2]
+				if matches[0][3] == "i" {
+					preparsed += "-" + matches[0][3]
+				}
+			case "":
+				preparsed = "iso-8859-1"
+			}
+		}
+	}
+
+	// latin is tricky
+	re = regexp.MustCompile("^(cs|csiso)?l(atin)?[-_ ]?([0-9]{1,2})$")
+	matches = re.FindAllStringSubmatch(preparsed, -1)
+	if len(matches) == 1 && len(matches[0]) == 4 {
+		switch matches[0][3] {
+		case "1":
+			preparsed = "windows-1252"
+		case "2", "3", "4", "5":
+			preparsed = "iso-8859-" + matches[0][3]
+		case "6":
+			preparsed = "iso-8859-10"
+		case "8":
+			preparsed = "iso-8859-14"
+		case "9":
+			preparsed = "iso-8859-15"
+		case "10":
+			preparsed = "iso-8859-16"
+		}
+	}
+
+	// missing substitutions
+	switch preparsed {
+	case "csutf8", "iso-utf-8", "utf8mb4":
+		preparsed = "utf-8"
+
+	case "eucjp", "ibm-eucjp":
+		preparsed = "euc-jp"
+	case "euckr", "ibm-euckr", "cp949":
+		preparsed = "euc-kr"
+	case "euccn", "ibm-euccn":
+		preparsed = "gbk"
+	case "zht16mswin950", "cp950":
+		preparsed = "big5"
+
+	case "csascii",
 		"ansi_x3.4-1968",
 		"ansi_x3.4-1986",
-		"iso_646.irv:1991",
-		"iso646-us",
+		"ansi_x3.110-1983",
+		"cp850",
+		"cp858",
 		"us",
-		"ibm367",
+		"iso646",
+		"iso-646",
+		"iso646-us",
+		"iso_646.irv:1991",
 		"cp367",
-		"csascii",
-		"ascii",
-		"ks_c_5601-1987",   // MIB 36
-		"euc-kr",           // MIB 38
-		"iso-2022-jp",      // MIB 39
-		"ansi_x3.110-1983", // MIB 74
-		"gb2312",           // MIB 2025
-		"":                 // Nothing to do
-		return
-	case "utf7", "utf-7":
-		return NewUtf7Decoder(), nil
-	case "iso-8859-1", // MIB 4
-		"iso8859-1",
-		"so-ir-100",
-		"iso_8859-1",
-		"latin1",
-		"l1",
-		"ibm819",
-		"cp819",
-		"csisolatin1":
-		enc = charmap.ISO8859_1
-	case "iso-8859-2", // MIB 5
-		"iso-ir-101",
-		"iso_8859-2",
-		"iso8859-2",
-		"latin2",
-		"l2",
-		"csisolatin2":
-		enc = charmap.ISO8859_2
-	case "iso-8859-3", // MIB 6
-		"iso-ir-109",
-		"iso_8859-3",
-		"latin3",
-		"l3",
-		"csisolatin3":
-		enc = charmap.ISO8859_3
-	case "iso-8859-4", // MIB 7
-		"iso-ir-110",
-		"iso_8859-4",
-		"latin4",
-		"l4",
-		"csisolatin4":
-		enc = charmap.ISO8859_4
-	case "iso-8859-5", // MIB 8
-		"iso-ir-144",
-		"iso_8859-5",
-		"cyrillic",
-		"csisolatincyrillic":
-		enc = charmap.ISO8859_5
-	case "iso-8859-6", // MIB 9
-		"iso-ir-127",
-		"iso_8859-6",
-		"ecma-114",
-		"asmo-708",
-		"arabic",
-		"csisolatinarabic":
-		enc = charmap.ISO8859_6
-	case "iso-8859-6e", // MIB 81
-		"csiso88596e",
-		"iso-8859-6-e":
-		enc = charmap.ISO8859_6E
-	case "iso-8859-6i", // MIB 82
-		"csiso88596i",
-		"iso-8859-6-i":
-		enc = charmap.ISO8859_6I
-	case "iso-8859-7", // MIB 10
-		"iso-ir-126",
-		"iso_8859-7",
-		"elot_928",
-		"ecma-118",
-		"greek",
-		"greek8",
-		"csisolatingreek":
-		enc = charmap.ISO8859_7
-	case "iso-8859-8", // MIB 11
-		"iso-ir-138",
-		"iso_8859-8",
-		"hebrew",
-		"csisolatinhebrew":
-		enc = charmap.ISO8859_8
-	case "iso-8859-8e", // MIB 84
-		"csiso88598e",
-		"iso-8859-8-e":
-		enc = charmap.ISO8859_8E
-	case "iso-8859-8i", // MIB 85
-		"csiso88598i",
-		"iso-8859-8-i":
-		enc = charmap.ISO8859_8I
-	case "iso-8859-10", // MIB 13
-		"iso-ir-157",
-		"l6",
-		"iso_8859-10:1992",
-		"csisolatin6",
-		"latin6":
-		enc = charmap.ISO8859_10
-	case "iso-8859-13", // MIB 109
-		"csiso885913":
-		enc = charmap.ISO8859_13
-	case "iso-8859-14", // MIB 110
-		"iso-ir-199",
-		"iso_8859-14:1998",
-		"iso_8859-14",
-		"latin8",
-		"iso-celtic",
-		"l8",
-		"csiso885914":
-		enc = charmap.ISO8859_14
-	case "iso-8859-15", // MIB 111
-		"iso_8859-15",
-		"latin-9",
-		"csiso885915",
-		"ISO8859-15":
-		enc = charmap.ISO8859_15
-	case "iso-8859-16", // MIB 112
-		"iso-ir-226",
-		"iso_8859-16:2001",
-		"iso_8859-16",
-		"latin10",
-		"l10",
-		"csiso885916":
-		enc = charmap.ISO8859_16
-	case "windows-874", "cswindows874": // MIB 2109
-		enc = charmap.Windows874
-	case "windows-1250", "cswindows1250": // MIB 2250
-		enc = charmap.Windows1250
-	case "windows-1251", "cswindows1251": // MIB 2251
-		enc = charmap.Windows1251
-	case "windows-1252", "cswindows1252", "cp1252", "3dwindows-1252": // MIB 2252
-		enc = charmap.Windows1252
-	case "windows-1253", "cswindows1253": // MIB 2253
-		enc = charmap.Windows1253
-	case "windows-1254", "cswindows1254": // MIB 2254
-		enc = charmap.Windows1254
-	case "windows-1255", "cswindows1255": // MIB 2255
-		enc = charmap.Windows1255
-	case "windows-1256", "cswindows1256": // MIB 2256
-		enc = charmap.Windows1256
-	case "windows-1257", "cswindows1257": // MIB 2257
-		enc = charmap.Windows1257
-	case "koi8-r", "cskoi8r": // MIB 2084
-		enc = charmap.KOI8R
-	case "koi8-u", "cskoi8u": // MIB 2088
-		enc = charmap.KOI8U
-	case "macintosh", "mac", "csmacintosh": // MIB 2027
-		enc = charmap.Macintosh
-	default:
-		err = errors.New("Unsupported charset " + charset)
-		return
+		"ibm367",
+		"ibm-367",
+		"iso-ir-6":
+		preparsed = "ascii"
+
+	case "ibm852":
+		preparsed = "iso-8859-2"
+	case "iso-ir-199", "iso-celtic":
+		preparsed = "iso-8859-14"
+	case "iso-ir-226":
+		preparsed = "iso-8859-16"
+
+	case "macroman":
+		preparsed = "macintosh"
 	}
-	decoder = enc.NewDecoder()
+
+	enc, _ = htmlindex.Get(preparsed)
+	if enc == nil {
+		err = fmt.Errorf("Can not get encodig for '%s' (or '%s')", charset, preparsed)
+	}
+	return
+}
+
+func selectDecoder(charset string) (decoder *encoding.Decoder, err error) {
+	var enc encoding.Encoding
+	lcharset := strings.Trim(strings.ToLower(charset), " \t\r\n")
+	switch lcharset {
+	case "utf7", "utf-7", "unicode-1-1-utf-7":
+		return NewUtf7Decoder(), nil
+	default:
+		enc, err = getEncoding(lcharset)
+	}
+	if err == nil {
+		decoder = enc.NewDecoder()
+	}
 	return
 }
 

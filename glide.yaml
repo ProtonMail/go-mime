@@ -1,7 +1,0 @@
-package: pmmime
-import:
-- package: github.com/Sirupsen/logrus
-- package: golang.org/x/text
-  subpackages:
-  - encoding
-  - encoding/charmap

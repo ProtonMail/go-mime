@@ -65,18 +65,18 @@ Content-Type: multipart/mixed;
 
 This is a multipart message in MIME format.
 
---XXXXboundary text 
-Content-Type: text/plain
+--XXXXboundary text
+Content-Type: text/plain; charset=utf-8
 
 this is the body text
 
---XXXXboundary text 
-Content-Type: text/html
+--XXXXboundary text
+Content-Type: text/html; charset=utf-8
 
-this is the html body text
+<html><body>this is the html body text</body></html>
 
---XXXXboundary text 
-Content-Type: text/plain;
+--XXXXboundary text
+Content-Type: text/plain; charset=utf-8
 Content-Disposition: attachment;
         filename="test.txt"
 
