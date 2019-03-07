@@ -230,16 +230,12 @@ func TestGetEncoding(t *testing.T) {
 			"iso2022jp",
 			"csiso2022jp",
 		},
-
-		"unknown": []string{},
 	}
 
 	for expected, names := range mimesets {
 		expenc, _ := htmlindex.Get(expected)
-		if expected != "unknown" {
-			if canonical, err := htmlindex.Name(expenc); canonical != expected || err != nil {
-				t.Fatalf("Error while get canonical name. Expected '%v' but have %v `%#v`: %v", expected, canonical, expenc, err)
-			}
+		if canonical, err := htmlindex.Name(expenc); canonical != expected || err != nil {
+			t.Fatalf("Error while get canonical name. Expected '%v' but have %v `%#v`: %v", expected, canonical, expenc, err)
 		}
 		for _, name := range names {
 			enc, err := getEncoding(name)
