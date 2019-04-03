@@ -16,6 +16,7 @@ type utf7Decoder struct {
 	transform.NopResetter
 }
 
+// NewUtf7Decoder return decoder for utf7
 func NewUtf7Decoder() *encoding.Decoder {
 	return &encoding.Decoder{Transformer: utf7Decoder{}}
 }

@@ -8,6 +8,7 @@ import (
 	"mime/quotedprintable"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"encoding/base64"
 	"golang.org/x/text/encoding"
@@ -139,7 +140,7 @@ func getEncoding(charset string) (enc encoding.Encoding, err error) {
 
 	enc, _ = htmlindex.Get(preparsed)
 	if enc == nil {
-		err = fmt.Errorf("Can not get encodig for '%s' (or '%s')", charset, preparsed)
+		err = fmt.Errorf("can not get encodig for '%s' (or '%s')", charset, preparsed)
 	}
 	return
 }
@@ -159,21 +160,37 @@ func selectDecoder(charset string) (decoder *encoding.Decoder, err error) {
 	return
 }
 
+// DecodeHeader if needed. Returns error if raw contains non-utf8 characters
 func DecodeHeader(raw string) (decoded string, err error) {
 	if decoded, err = wordDec.DecodeHeader(raw); err != nil {
 		decoded = raw
 	}
+	if !utf8.ValidString(decoded) {
+		err = fmt.Errorf("header contains non utf8 chars: %v", err)
+	}
 	return
 }
 
+// EncodeHeader using quoted printable and utf8
 func EncodeHeader(s string) string {
 	return mime.QEncoding.Encode("utf-8", s)
 }
 
-func DecodeCharset(original []byte, parameters map[string]string) ([]byte, error) {
-	charset, ok := parameters["charset"]
-	decoder, err := selectDecoder(charset)
-	if len(original) == 0 || !ok || decoder == nil {
+// DecodeCharset decodes the orginal using content type parameters. When
+// charset missing it checks the content is utf8-valid.
+func DecodeCharset(original []byte, contentTypeParams map[string]string) ([]byte, error) {
+	var decoder *encoding.Decoder
+	var err error
+	if charset, ok := contentTypeParams["charset"]; ok {
+		decoder, err = selectDecoder(charset)
+	} else {
+		if utf8.Valid(original) {
+			return original, nil
+		}
+		err = fmt.Errorf("non-utf8 content without charset specification")
+	}
+
+	if err != nil {
 		return original, err
 	}
 
@@ -191,6 +208,7 @@ func DecodeCharset(original []byte, parameters map[string]string) ([]byte, error
 	return utf8, nil
 }
 
+// DecodeContentEncoding wraps the reader with decoder based on content encoding
 func DecodeContentEncoding(r io.Reader, contentEncoding string) (d io.Reader) {
 	switch strings.ToLower(contentEncoding) {
 	case "quoted-printable":
