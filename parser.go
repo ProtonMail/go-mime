@@ -16,12 +16,14 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
+// VisitAcceptor decidest what to do with part which is processed
+// It is used by MIMEVisitor
 type VisitAcceptor interface {
 	Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error)
 }
 
 func VisitAll(part io.Reader, h textproto.MIMEHeader, accepter VisitAcceptor) (err error) {
-	mediaType, _, err := mime.ParseMediaType(h.Get("Content-Type"))
+	mediaType, _, err := getContentType(h)
 	if err != nil {
 		return
 	}
@@ -32,15 +34,19 @@ func IsLeaf(h textproto.MIMEHeader) bool {
 	return !strings.HasPrefix(h.Get("Content-Type"), "multipart/")
 }
 
+// MIMEVisitor is main object to parse (visit) and process (accept) all parts of MIME message
 type MimeVisitor struct {
 	target VisitAcceptor
 }
 
+// Accept reads part recursively if needed
+// hasPlainSibling is there when acceptor want to check alternatives
 func (mv *MimeVisitor) Accept(part io.Reader, h textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error) {
 	if !isFirst {
 		return
 	}
-	parentMediaType, params, err := mime.ParseMediaType(h.Get("Content-Type"))
+
+	parentMediaType, params, err := getContentType(h)
 	if err != nil {
 		return
 	}
@@ -54,32 +60,31 @@ func (mv *MimeVisitor) Accept(part io.Reader, h textproto.MIMEHeader, hasPlainSi
 		var multipartHeaders []textproto.MIMEHeader
 		if multiparts, multipartHeaders, err = GetMultipartParts(part, params); err != nil {
 			return
-		} else {
-			hasPlainChild := false
-			for _, header := range multipartHeaders {
-				mediaType, _, _ := mime.ParseMediaType(header.Get("Content-Type"))
-				if mediaType == "text/plain" {
-					hasPlainChild = true
-				}
-			}
-			if hasPlainSibling && parentMediaType == "multipart/related" {
+		}
+		hasPlainChild := false
+		for _, header := range multipartHeaders {
+			mediaType, _, _ := getContentType(header)
+			if mediaType == "text/plain" {
 				hasPlainChild = true
 			}
+		}
+		if hasPlainSibling && parentMediaType == "multipart/related" {
+			hasPlainChild = true
+		}
 
-			for i, p := range multiparts {
-				if err = mv.Accept(p, multipartHeaders[i], hasPlainChild, true, true); err != nil {
-					return
-				}
-				if err = mv.target.Accept(part, h, hasPlainSibling, false, i == (len(multiparts)-1)); err != nil {
-					return
-				}
+		for i, p := range multiparts {
+			if err = mv.Accept(p, multipartHeaders[i], hasPlainChild, true, true); err != nil {
+				return
+			}
+			if err = mv.target.Accept(part, h, hasPlainSibling, false, i == (len(multiparts)-1)); err != nil {
+				return
 			}
 		}
 	}
 	return
-
 }
 
+// NewMIMEVisitor initialiazed with acceptor
 func NewMimeVisitor(targetAccepter VisitAcceptor) *MimeVisitor {
 	return &MimeVisitor{targetAccepter}
 }
@@ -129,8 +134,7 @@ func GetRawMimePart(rawdata io.Reader, boundary string) (io.Reader, io.Reader) {
 }
 
 func GetAllChildParts(part io.Reader, h textproto.MIMEHeader) (parts []io.Reader, headers []textproto.MIMEHeader, err error) {
-
-	mediaType, params, err := mime.ParseMediaType(h.Get("Content-Type"))
+	mediaType, params, err := getContentType(h)
 	if err != nil {
 		return
 	}
@@ -197,7 +201,7 @@ func GetMultipartParts(r io.Reader, params map[string]string) (parts []io.Reader
 func pickAlternativePart(parts []io.Reader, headers []textproto.MIMEHeader) (part io.Reader, h textproto.MIMEHeader, err error) {
 
 	for i, h := range headers {
-		mediaType, _, err := mime.ParseMediaType(h.Get("Content-Type"))
+		mediaType, _, err := getContentType(h)
 		if err != nil {
 			continue
 		}
@@ -206,7 +210,7 @@ func pickAlternativePart(parts []io.Reader, headers []textproto.MIMEHeader) (par
 		}
 	}
 	for i, h := range headers {
-		mediaType, _, err := mime.ParseMediaType(h.Get("Content-Type"))
+		mediaType, _, err := getContentType(h)
 		if err != nil {
 			continue
 		}
@@ -215,7 +219,7 @@ func pickAlternativePart(parts []io.Reader, headers []textproto.MIMEHeader) (par
 		}
 	}
 	for i, h := range headers {
-		mediaType, _, err := mime.ParseMediaType(h.Get("Content-Type"))
+		mediaType, _, err := getContentType(h)
 		if err != nil {
 			continue
 		}
@@ -256,7 +260,7 @@ func checkHeaders(headers []textproto.MIMEHeader) bool {
 	for i := 0; i < len(headers); i++ {
 		h := headers[i]
 
-		mediaType, _, _ := mime.ParseMediaType(h.Get("Content-Type"))
+		mediaType, _, _ := getContentType(h)
 
 		if !strings.HasPrefix(mediaType, "text/") {
 			foundAttachment = true
@@ -277,8 +281,19 @@ func decodePart(partReader io.Reader, header textproto.MIMEHeader) (decodedPart 
 	return
 }
 
+// assume 'text/plain' if missing
+func getContentType(header textproto.MIMEHeader) (mediatype string, params map[string]string, err error) {
+	contentType := header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "text/plain"
+	}
+
+	return mime.ParseMediaType(contentType)
+}
+
 // ===================== MIME Printer ===================================
 // Simply print resulting MIME tree into text form
+// TODO to file mime_printer.go
 type stack []string
 
 func (s stack) Push(v string) stack {
@@ -311,7 +326,7 @@ func (pd *MIMEPrinter) Accept(partReader io.Reader, header textproto.MIMEHeader,
 		if IsLeaf(header) {
 			pd.result.ReadFrom(partReader)
 		} else {
-			_, params, _ := mime.ParseMediaType(header.Get("Content-Type"))
+			_, params, _ := getContentType(header)
 			boundary := params["boundary"]
 			pd.boundaryStack = pd.boundaryStack.Push(boundary)
 			pd.result.Write([]byte("\nThis is a multi-part message in MIME format.\n--" + boundary + "\n"))
@@ -335,6 +350,7 @@ func (pd *MIMEPrinter) String() string {
 // ======================== PlainText Collector  =========================
 // Collect contents of all non-attachment text/plain parts and return
 // it is a string
+// TODO to file collector_plaintext.go
 
 type PlainTextCollector struct {
 	target            VisitAcceptor
@@ -351,7 +367,7 @@ func NewPlainTextCollector(targetAccepter VisitAcceptor) *PlainTextCollector {
 func (ptc *PlainTextCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error) {
 	if isFirst {
 		if IsLeaf(header) {
-			mediaType, params, _ := mime.ParseMediaType(header.Get("Content-Type"))
+			mediaType, params, _ := getContentType(header)
 			disp, _, _ := mime.ParseMediaType(header.Get("Content-Disposition"))
 			if mediaType == "text/plain" && disp != "attachment" {
 				partData, _ := ioutil.ReadAll(partReader)
@@ -382,6 +398,7 @@ func (ptc PlainTextCollector) GetPlainText() string {
 // ======================== Body Collector  ==============
 // Collect contents of all non-attachment parts and return
 // it as a string
+// TODO to file collector_body.go
 
 type BodyCollector struct {
 	target            VisitAcceptor
@@ -406,7 +423,7 @@ func (bc *BodyCollector) Accept(partReader io.Reader, header textproto.MIMEHeade
 	// TODO: collect html and plaintext - if there's html with plain sibling don't include plain/text
 	if isFirst {
 		if IsLeaf(header) {
-			mediaType, params, _ := mime.ParseMediaType(header.Get("Content-Type"))
+			mediaType, params, _ := getContentType(header)
 			disp, _, _ := mime.ParseMediaType(header.Get("Content-Disposition"))
 			if disp != "attachment" {
 				partData, _ := ioutil.ReadAll(partReader)
@@ -455,6 +472,7 @@ func (bc *BodyCollector) GetHeaders() string {
 // ======================== Attachments Collector  ==============
 // Collect contents of all attachment parts and return
 // them as a string
+// TODO to file collector_attachment.go
 
 type AttachmentsCollector struct {
 	target     VisitAcceptor
@@ -473,7 +491,7 @@ func NewAttachmentsCollector(targetAccepter VisitAcceptor) *AttachmentsCollector
 func (ac *AttachmentsCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error) {
 	if isFirst {
 		if IsLeaf(header) {
-			mediaType, params, _ := mime.ParseMediaType(header.Get("Content-Type"))
+			mediaType, params, _ := getContentType(header)
 			disp, _, _ := mime.ParseMediaType(header.Get("Content-Disposition"))
 			if (mediaType != "text/html" && mediaType != "text/plain") || disp == "attachment" {
 				partData, _ := ioutil.ReadAll(partReader)
