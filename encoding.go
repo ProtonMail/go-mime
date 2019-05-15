@@ -1,4 +1,4 @@
-package pmmime
+package gomime
 
 import (
 	"bytes"
