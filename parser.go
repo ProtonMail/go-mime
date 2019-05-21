@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // VisitAcceptor decidest what to do with part which is processed
