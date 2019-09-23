@@ -340,7 +340,7 @@ func TestEncodeReader(t *testing.T) {
 	for _, val := range testData {
 		//fmt.Println("Testing ", val)
 		expected := []byte(val.message)
-		decoded, err := DecodeCharset(val.original, val.params)
+		decoded, err := DecodeCharset(val.original, "text/plain", val.params)
 		if len(expected) == 0 {
 			if err == nil {
 				t.Error("Expected err but have ", err)
