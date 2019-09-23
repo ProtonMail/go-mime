@@ -178,13 +178,13 @@ func EncodeHeader(s string) string {
 
 // DecodeCharset decodes the orginal using content type parameters. When
 // charset missing it checks the content is utf8-valid.
-func DecodeCharset(original []byte, contentTypeParams map[string]string) ([]byte, error) {
+func DecodeCharset(original []byte, mediaType string, contentTypeParams map[string]string) ([]byte, error) {
 	var decoder *encoding.Decoder
 	var err error
 	if charset, ok := contentTypeParams["charset"]; ok {
 		decoder, err = selectDecoder(charset)
 	} else {
-		if utf8.Valid(original) {
+		if !strings.HasPrefix(mediaType, "text/") || utf8.Valid(original) {
 			return original, nil
 		}
 		err = fmt.Errorf("non-utf8 content without charset specification")
