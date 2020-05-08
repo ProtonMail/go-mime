@@ -11,12 +11,12 @@ import (
 )
 
 // utf7Decoder copied from: https://github.com/cention-sany/utf7/blob/master/utf7.go
-// We need `encoding.Decoder` instead of function `UTF7DecodeBytes`
+// We need `encoding.Decoder` instead of function `UTF7DecodeBytes`.
 type utf7Decoder struct {
 	transform.NopResetter
 }
 
-// NewUtf7Decoder return decoder for utf7
+// NewUtf7Decoder returns a new decoder for utf7.
 func NewUtf7Decoder() *encoding.Decoder {
 	return &encoding.Decoder{Transformer: utf7Decoder{}}
 }
@@ -62,62 +62,63 @@ func (d utf7Decoder) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err
 		if c := src[nSrc]; ((c < u7min || c > u7max) &&
 			c != '\t' && c != '\r' && c != '\n') ||
 			c == '~' || c == '\\' {
-			return nDst, nSrc, ErrBadUTF7 // Illegal code point in ASCII mode
+			return nDst, nSrc, ErrBadUTF7 // Illegal code point in ASCII mode.
 		} else if c != '+' {
-			dst[nDst] = c // character is self-representing
+			dst[nDst] = c // Character is self-representing.
 			nDst++
 			continue
 		}
-		// found '+'
+		// Found '+'.
 		start := nSrc + 1
-		tmp = nSrc // nSrc still points to '+', tmp points to the end of BASE64
-		// Find the end of the Base64 or "+-" segment
+		tmp = nSrc // nSrc still points to '+', tmp points to the end of BASE64.
+
+		// Find the end of the Base64 or "+-" segment.
 		implicit = false
 		for tmp++; tmp < n && src[tmp] != '-'; tmp++ {
 			if !isModifiedBase64(src[tmp]) {
 				if tmp == start {
-					return nDst, tmp, ErrBadUTF7 // '+' next char must modified base64
+					return nDst, tmp, ErrBadUTF7 // '+' next char must modified base64.
 				}
-				// implicit shift back to ASCII - no need '-' character
+				// Implicit shift back to ASCII, no need for '-' character.
 				implicit = true
 				break
 			}
 		}
 		if tmp == start {
 			if tmp == n {
-				// did not find '-' sign and '+' is the last character
-				// total nSrc not includes '+'
+				// Did not find '-' sign and '+' is the last character.
+				// Total nSrc does not include '+'.
 				if atEOF {
-					return nDst, nSrc, ErrBadUTF7 // '+' can not be at the end
+					return nDst, nSrc, ErrBadUTF7 // '+' can not be at the end.
 				}
-				// '+' can not be at the end, the source si too short
+				// '+' can not be at the end, the source is too short.
 				return nDst, nSrc, transform.ErrShortSrc
 			}
-			dst[nDst] = '+' // Escape sequence "+-"
+			dst[nDst] = '+' // Escape sequence "+-".
 			nDst++
 		} else if tmp == n && !atEOF {
-			// no eof found, the source is too short
+			// No EOF found, the source is too short.
 			return nDst, nSrc, transform.ErrShortSrc
 		} else if b := utf7dec(src[start:tmp]); len(b) > 0 {
 			if len(b)+nDst > nd {
-				// need more space in dst for the decoded modified BASE64 unicode
-				// total nSrc is not including '+'
+				// Need more space in dst for the decoded modified BASE64 unicode.
+				// Total nSrc does not include '+'.
 				return nDst, nSrc, transform.ErrShortDst
 			}
-			copy(dst[nDst:], b) // Control or non-ASCII code points in Base64
+			copy(dst[nDst:], b) // Control or non-ASCII code points in Base64.
 			nDst += len(b)
 			if implicit {
 				if nDst >= nd {
 					return nDst, tmp, transform.ErrShortDst
 				}
-				dst[nDst] = src[tmp] // implicit shift
+				dst[nDst] = src[tmp] // Implicit shift.
 				nDst++
 			}
 			if tmp == n {
 				return nDst, tmp, nil
 			}
 		} else {
-			return nDst, nSrc, ErrBadUTF7 // bad encoding
+			return nDst, nSrc, ErrBadUTF7 // Bad encoding.
 		}
 		nSrc = tmp
 	}
@@ -144,13 +145,13 @@ func utf7dec(b64 []byte) []byte {
 		b64, b = b[:n], b[n:]
 	}
 
-	// Decode Base64 into the first 1/3rd of b
+	// Decode Base64 into the first 1/3rd of b.
 	n, err := u7enc.Decode(b, b64)
 	if err != nil || n&1 == 1 {
 		return nil
 	}
 
-	// Decode UTF-16-BE into the remaining 2/3rds of b
+	// Decode UTF-16-BE into the remaining 2/3rds of b.
 	b, s := b[:n], b[n:]
 	j := 0
 	for i := 0; i < n; i += 2 {

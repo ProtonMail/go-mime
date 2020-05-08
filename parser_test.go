@@ -337,3 +337,19 @@ TqRoIApQlGggySjCNBAJQcgggEAIFqCCASAklqCCALT1TfhDdEgggNI9v1SXM/ugggjDmHqEEEEy
 	fmt.Println("==ATTACHMENT HEADERS:")
 	fmt.Println(attHeads)
 }
+
+func TestParseAddressComment(t *testing.T) {
+	parsingExamples := map[string]string{
+		"":                          "",
+		"(Only Comment) here@pm.me": "\"Only Comment\" <here@pm.me>",
+		"Normal Name (With Comment) <here@pm.me>":          "\"Normal Name\" <here@pm.me>",
+		"<Muhammed.(I am the greatest)Ali@(the)Vegas.WBA>": "\"I am the greatest the\" <Muhammed.Ali@Vegas.WBA>",
+	}
+
+	for raw, expected := range parsingExamples {
+		parsed := parseAddressComment(raw)
+		if expected != parsed {
+			t.Errorf("When parsing %q expected %q but have %q", raw, expected, parsed)
+		}
+	}
+}

@@ -11,9 +11,11 @@ import (
 	"unicode/utf8"
 
 	"encoding/base64"
+
+	"github.com/pkg/errors"
 	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/htmlindex"
-	"golang.org/x/text/transform"
 )
 
 var wordDec = &mime.WordDecoder{
@@ -29,7 +31,7 @@ var wordDec = &mime.WordDecoder{
 	},
 }
 
-// expected trimmed low case
+// Expects trimmed lowercase.
 func getEncoding(charset string) (enc encoding.Encoding, err error) {
 	preparsed := strings.Trim(strings.ToLower(charset), " \t\r\n")
 
@@ -76,7 +78,7 @@ func getEncoding(charset string) (enc encoding.Encoding, err error) {
 		}
 	}
 
-	// latin is tricky
+	// Latin is tricky.
 	re = regexp.MustCompile("^(cs|csiso)?l(atin)?[-_ ]?([0-9]{1,2})$")
 	matches = re.FindAllStringSubmatch(preparsed, -1)
 	if len(matches) == 1 && len(matches[0]) == 4 {
@@ -96,11 +98,13 @@ func getEncoding(charset string) (enc encoding.Encoding, err error) {
 		}
 	}
 
-	// missing substitutions
+	// Missing substitutions.
 	switch preparsed {
 	case "csutf8", "iso-utf-8", "utf8mb4":
 		preparsed = "utf-8"
 
+	case "cp932", "windows-932", "windows-31J", "ibm-943", "cp943":
+		preparsed = "shift_jis"
 	case "eucjp", "ibm-eucjp":
 		preparsed = "euc-jp"
 	case "euckr", "ibm-euckr", "cp949":
@@ -140,7 +144,7 @@ func getEncoding(charset string) (enc encoding.Encoding, err error) {
 
 	enc, _ = htmlindex.Get(preparsed)
 	if enc == nil {
-		err = fmt.Errorf("can not get encodig for '%s' (or '%s')", charset, preparsed)
+		err = fmt.Errorf("can not get encoding for '%s' (or '%s')", charset, preparsed)
 	}
 	return
 }
@@ -160,7 +164,7 @@ func selectDecoder(charset string) (decoder *encoding.Decoder, err error) {
 	return
 }
 
-// DecodeHeader if needed. Returns error if raw contains non-utf8 characters
+// DecodeHeader if needed. Returns error if raw contains non-utf8 characters.
 func DecodeHeader(raw string) (decoded string, err error) {
 	if decoded, err = wordDec.DecodeHeader(raw); err != nil {
 		decoded = raw
@@ -176,39 +180,54 @@ func EncodeHeader(s string) string {
 	return mime.QEncoding.Encode("utf-8", s)
 }
 
-// DecodeCharset decodes the orginal using content type parameters. When
-// charset missing it checks the content is utf8-valid.
-func DecodeCharset(original []byte, mediaType string, contentTypeParams map[string]string) ([]byte, error) {
-	var decoder *encoding.Decoder
-	var err error
+// DecodeCharset decodes the orginal using content type parameters.
+// When charset is missing it checks that the content is valid utf8.
+// If it isn't, it checks whether the content is valid latin1 (iso-8859-1), and if so,
+// reencodes it as utf-8.
+func DecodeCharset(original []byte, contentTypeParams map[string]string) (decoded []byte, err error) {
+	// By default, return the original if decoding fails.
+	decoded = original
+
+	// If the charset is specified, use that.
 	if charset, ok := contentTypeParams["charset"]; ok {
-		decoder, err = selectDecoder(charset)
-	} else {
-		if !strings.HasPrefix(mediaType, "text/") || utf8.Valid(original) {
-			return original, nil
+		var decoder *encoding.Decoder
+
+		if decoder, err = selectDecoder(charset); err != nil {
+			err = errors.Wrap(err, "unknown charset was specified")
+			return
 		}
-		err = fmt.Errorf("non-utf8 content without charset specification")
+
+		return decoder.Bytes(original)
 	}
 
-	if err != nil {
-		return original, err
+	// The charset was not specified. First try utf8.
+	if utf8.Valid(original) {
+		return
 	}
 
-	utf8 := make([]byte, len(original))
-	nDst, nSrc, err := decoder.Transform(utf8, original, false)
-	for err == transform.ErrShortDst {
-		utf8 = make([]byte, (nDst/nSrc+1)*len(original))
-		nDst, nSrc, err = decoder.Transform(utf8, original, false)
+	// Fallback to latin1.
+	if decoded, err = charmap.ISO8859_1.NewDecoder().Bytes(original); err != nil {
+		err = errors.Wrap(err, "failed to decode as latin1")
+		return
 	}
-	if err != nil {
-		return original, err
-	}
-	utf8 = bytes.Trim(utf8, "\x00")
 
-	return utf8, nil
+	// We check whether the input was true latin1 by confirming original == encode(decode(original))
+	var reencoded []byte
+	if reencoded, err = charmap.ISO8859_1.NewEncoder().Bytes(decoded); err != nil {
+		err = errors.Wrap(err, "failed to reencode latin1")
+		return
+	}
+
+	if bytes.Compare(original, reencoded) == 0 {
+		return
+	}
+
+	err = errors.New("no charset was specified and the source was neither utf8 nor latin1")
+
+	return
 }
 
-// DecodeContentEncoding wraps the reader with decoder based on content encoding
+// DecodeContentEncoding wraps the reader with decoder based on content encoding.
 func DecodeContentEncoding(r io.Reader, contentEncoding string) (d io.Reader) {
 	switch strings.ToLower(contentEncoding) {
 	case "quoted-printable":
@@ -219,4 +238,10 @@ func DecodeContentEncoding(r io.Reader, contentEncoding string) (d io.Reader) {
 		d = r
 	}
 	return
+}
+
+// ParseMediaType from MIME doesn't support RFC2231 for non asci / utf8 encodings so we have to pre-parse it.
+func ParseMediaType(v string) (mediatype string, params map[string]string, err error) {
+	v, _ = changeEncodingAndKeepLastParamDefinition(v)
+	return mime.ParseMediaType(v)
 }

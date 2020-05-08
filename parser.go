@@ -16,8 +16,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// VisitAcceptor decidest what to do with part which is processed
-// It is used by MIMEVisitor
+// VisitAcceptor decides what to do with part which is processed.
+// It is used by MIMEVisitor.
 type VisitAcceptor interface {
 	Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error)
 }
@@ -34,13 +34,13 @@ func IsLeaf(h textproto.MIMEHeader) bool {
 	return !strings.HasPrefix(h.Get("Content-Type"), "multipart/")
 }
 
-// MIMEVisitor is main object to parse (visit) and process (accept) all parts of MIME message
+// MIMEVisitor is main object to parse (visit) and process (accept) all parts of MIME message.
 type MimeVisitor struct {
 	target VisitAcceptor
 }
 
-// Accept reads part recursively if needed
-// hasPlainSibling is there when acceptor want to check alternatives
+// Accept reads part recursively if needed.
+// hasPlainSibling is there when acceptor want to check alternatives.
 func (mv *MimeVisitor) Accept(part io.Reader, h textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error) {
 	if !isFirst {
 		return
@@ -84,7 +84,7 @@ func (mv *MimeVisitor) Accept(part io.Reader, h textproto.MIMEHeader, hasPlainSi
 	return
 }
 
-// NewMIMEVisitor initialiazed with acceptor
+// NewMIMEVisitor returns a new mime visitor initialised with an acceptor.
 func NewMimeVisitor(targetAccepter VisitAcceptor) *MimeVisitor {
 	return &MimeVisitor{targetAccepter}
 }
@@ -227,13 +227,14 @@ func pickAlternativePart(parts []io.Reader, headers []textproto.MIMEHeader) (par
 			return parts[i], headers[i], nil
 		}
 	}
-	//if we get all the way here, part will be nil
+
+	// If we get all the way here, part will be nil.
 	return
 }
 
-// Parse address comment as defined in http://tools.wordtothewise.com/rfc/822
-// FIXME: Does not work for address groups
-// NOTE: This should be removed for go>1.10 (please check)
+// "Parse address comment" as defined in http://tools.wordtothewise.com/rfc/822
+// FIXME: Does not work for address groups.
+// NOTE: This should be removed for go>1.10 (please check).
 func parseAddressComment(raw string) string {
 	parsed := []string{}
 	for _, item := range regexp.MustCompile("[,;]").Split(raw, -1) {
@@ -265,7 +266,8 @@ func checkHeaders(headers []textproto.MIMEHeader) bool {
 		if !strings.HasPrefix(mediaType, "text/") {
 			foundAttachment = true
 		} else if foundAttachment {
-			//this means that there is a text part after the first attachment, so we will have to convert the body from plain->HTML
+			// This means that there is a text part after the first attachment,
+			// so we will have to convert the body from plain->HTML.
 			return true
 		}
 	}
@@ -281,7 +283,7 @@ func decodePart(partReader io.Reader, header textproto.MIMEHeader) (decodedPart 
 	return
 }
 
-// assume 'text/plain' if missing
+// Assume 'text/plain' if missing.
 func getContentType(header textproto.MIMEHeader) (mediatype string, params map[string]string, err error) {
 	contentType := header.Get("Content-Type")
 	if contentType == "" {
@@ -292,8 +294,9 @@ func getContentType(header textproto.MIMEHeader) (mediatype string, params map[s
 }
 
 // ===================== MIME Printer ===================================
-// Simply print resulting MIME tree into text form
-// TODO to file mime_printer.go
+// Simply print resulting MIME tree into text form.
+// TODO move this to file mime_printer.go.
+
 type stack []string
 
 func (s stack) Push(v string) stack {
@@ -348,9 +351,8 @@ func (pd *MIMEPrinter) String() string {
 }
 
 // ======================== PlainText Collector  =========================
-// Collect contents of all non-attachment text/plain parts and return
-// it is a string
-// TODO to file collector_plaintext.go
+// Collect contents of all non-attachment text/plain parts and return it as a string.
+// TODO move this to file collector_plaintext.go.
 
 type PlainTextCollector struct {
 	target            VisitAcceptor
@@ -374,7 +376,7 @@ func (ptc *PlainTextCollector) Accept(partReader io.Reader, header textproto.MIM
 				decodedPart := decodePart(bytes.NewReader(partData), header)
 
 				if buffer, err := ioutil.ReadAll(decodedPart); err == nil {
-					buffer, err = DecodeCharset(buffer, mediaType, params)
+					buffer, err = DecodeCharset(buffer, params)
 					if err != nil {
 						log.Warnln("Decode charset error:", err)
 						return err
@@ -396,9 +398,8 @@ func (ptc PlainTextCollector) GetPlainText() string {
 }
 
 // ======================== Body Collector  ==============
-// Collect contents of all non-attachment parts and return
-// it as a string
-// TODO to file collector_body.go
+// Collect contents of all non-attachment parts and return it as a string.
+// TODO move this to file collector_body.go.
 
 type BodyCollector struct {
 	target            VisitAcceptor
@@ -420,7 +421,7 @@ func NewBodyCollector(targetAccepter VisitAcceptor) *BodyCollector {
 }
 
 func (bc *BodyCollector) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) (err error) {
-	// TODO: collect html and plaintext - if there's html with plain sibling don't include plain/text
+	// TODO: Collect html and plaintext - if there's html with plain sibling don't include plain/text.
 	if isFirst {
 		if IsLeaf(header) {
 			mediaType, params, _ := getContentType(header)
@@ -429,7 +430,7 @@ func (bc *BodyCollector) Accept(partReader io.Reader, header textproto.MIMEHeade
 				partData, _ := ioutil.ReadAll(partReader)
 				decodedPart := decodePart(bytes.NewReader(partData), header)
 				if buffer, err := ioutil.ReadAll(decodedPart); err == nil {
-					buffer, err = DecodeCharset(buffer, mediaType, params)
+					buffer, err = DecodeCharset(buffer, params)
 					if err != nil {
 						log.Warnln("Decode charset error:", err)
 						return err
@@ -470,9 +471,8 @@ func (bc *BodyCollector) GetHeaders() string {
 }
 
 // ======================== Attachments Collector  ==============
-// Collect contents of all attachment parts and return
-// them as a string
-// TODO to file collector_attachment.go
+// Collect contents of all attachment parts and return them as a string.
+// TODO move this to file collector_attachment.go.
 
 type AttachmentsCollector struct {
 	target     VisitAcceptor
@@ -498,7 +498,7 @@ func (ac *AttachmentsCollector) Accept(partReader io.Reader, header textproto.MI
 				decodedPart := decodePart(bytes.NewReader(partData), header)
 
 				if buffer, err := ioutil.ReadAll(decodedPart); err == nil {
-					buffer, err = DecodeCharset(buffer, mediaType, params)
+					buffer, err = DecodeCharset(buffer, params)
 					if err != nil {
 						log.Warnln("Decode charset error:", err)
 						return err
