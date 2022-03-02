@@ -377,7 +377,7 @@ func (ptc *PlainTextCollector) Accept(partReader io.Reader, header textproto.MIM
 					buffer, err = DecodeCharset(buffer, mediaType, params)
 					if err != nil {
 						log.Warnln("Decode charset error:", err)
-						return err
+						err = nil // Don't fail parsing on decoding errors, use original
 					}
 					ptc.plainTextContents.Write(buffer)
 				}
@@ -432,7 +432,7 @@ func (bc *BodyCollector) Accept(partReader io.Reader, header textproto.MIMEHeade
 					buffer, err = DecodeCharset(buffer, mediaType, params)
 					if err != nil {
 						log.Warnln("Decode charset error:", err)
-						return err
+						err = nil // Don't fail parsing on decoding errors, use original
 					}
 					if mediaType == "text/html" {
 						bc.hasHtml = true
@@ -501,7 +501,7 @@ func (ac *AttachmentsCollector) Accept(partReader io.Reader, header textproto.MI
 					buffer, err = DecodeCharset(buffer, mediaType, params)
 					if err != nil {
 						log.Warnln("Decode charset error:", err)
-						return err
+						err = nil // Don't fail parsing on decoding errors, use original
 					}
 					headerBuf := new(bytes.Buffer)
 					http.Header(header).Write(headerBuf)
