@@ -11,7 +11,9 @@ import (
 	"unicode/utf8"
 
 	"encoding/base64"
+
 	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/htmlindex"
 	"golang.org/x/text/transform"
 )
@@ -186,6 +188,8 @@ func DecodeCharset(original []byte, mediaType string, contentTypeParams map[stri
 	} else {
 		if !strings.HasPrefix(mediaType, "text/") || utf8.Valid(original) {
 			return original, nil
+		} else if decoded, err := charmap.ISO8859_1.NewDecoder().Bytes(original); err == nil {
+			return decoded, nil
 		}
 		err = fmt.Errorf("non-utf8 content without charset specification")
 	}
