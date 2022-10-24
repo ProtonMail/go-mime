@@ -180,7 +180,7 @@ func GetMultipartParts(r io.Reader, params map[string]string) (parts []io.Reader
 	headers = []textproto.MIMEHeader{}
 	var p *multipart.Part
 	for {
-		p, err = mr.NextPart()
+		p, err = mr.NextRawPart()
 		if err == io.EOF {
 			err = nil
 			break
