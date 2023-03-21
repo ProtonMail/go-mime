@@ -2,7 +2,6 @@ package gomime
 
 import (
 	"bytes"
-	"fmt"
 
 	"io/ioutil"
 	"net/mail"
@@ -322,18 +321,8 @@ TqRoIApQlGggySjCNBAJQcgggEAIFqCCASAklqCCALT1TfhDdEgggNI9v1SXM/ugggjDmHqEEEEy
 
 
 `
-	body, heads, att, attHeads, err := androidParse(testMessage)
+	_, _, _, _, err := androidParse(testMessage)
 	if err != nil {
 		t.Error("parse error", err)
 	}
-
-	fmt.Println("==BODY:")
-	fmt.Println(body)
-	fmt.Println("==BODY HEADERS:")
-	fmt.Println(heads)
-
-	fmt.Println("==ATTACHMENTS:")
-	fmt.Println(att)
-	fmt.Println("==ATTACHMENT HEADERS:")
-	fmt.Println(attHeads)
 }
