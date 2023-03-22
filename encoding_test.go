@@ -46,6 +46,17 @@ func TestDecodeHeader(t *testing.T) {
 	}
 }
 
+func TestDecodeCharsetBoundaryInputs(t *testing.T) {
+	_, err := DecodeCharset([]byte("\xff"), "text/plain", map[string]string{"charset": "csKOI8R"})
+	if err != nil {
+		t.Error("Expected no error")
+	}
+	_, err = DecodeCharset([]byte("+000000000000000000000000 "), "text/plain", map[string]string{"charset": "utf7"})
+	if err != nil {
+		t.Error("Expected no error")
+	}
+}
+
 func TestGetEncoding(t *testing.T) {
 	// all MIME charset with aliases can be found here https://www.iana.org/assignments/character-sets/character-sets.xhtml
 	mimesets := map[string][]string{
